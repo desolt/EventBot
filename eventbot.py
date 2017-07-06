@@ -26,7 +26,7 @@ info_embed.set_thumbnail(url='http://www.thefamouspeople.com/profiles/images/hue
 
 commands_message = '```\n' \
                    'eb!info - shows this menu.\n' \
-                   'eb!event <name> <date> <time> - schedules an event\n' \
+                   'eb!event <name> <mm/dd/yy> <hh:mm> - schedules an event\n' \
                    'eb!events - shows the current scheduled events\n' \
                    'eb!cancel <name> - cancels an event\n' \
                    'eb!subscribe <name> - subscribes to an event\n' \
@@ -55,14 +55,12 @@ async def on_message(message):
     if message.content.startswith('eb!'):
         await process_command(message.content[3:].split(' '), message)
 
-            
-
 async def process_command(args, message):
-    if 'info' in args[0]:
+    if args[0] in 'info':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
         await bot.send_message(message.channel, 'The commands have been DMed to you!')
-    elif 'subscribe' in args[0]:
+    elif args[0] in 'subscribe':
         if len(args) == 2:
             try:
                 id = int(args[1])
@@ -83,8 +81,37 @@ async def process_command(args, message):
         else: 
             await bot.send_message(message.channel, 'Invalid arguments!')
     elif not message.channel.is_private:
-        if 'event' in args[0]: pass
+        if not message.channel.permissions_for(message.author).administrator:
+            await bot.send_message(message.channel, 'You do not have permission to use this command!')
+            return
 
+        if args[0] in 'event':
+            if len(args) != 4:
+                await bot.send_message(message.channel, 'Invalid arguments!')
+                return
+
+            dtstr = '{} {}'.format(args[2], args[3])
+            try:
+                dtobj = datetime.strptime(dtstr, '%m/%d/%y %H:%M')
+            except ValueError:
+                await bot.send_message(message.channel, 'Invalid datetime format!')
+                return
+
+            id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj))
+            await bot.send_message(message.channel, 'Created event #{} named "{}" scheduled for {}!'.format(id, args[1], dtobj.strftime('%m/%d/%y %I:%M%p')))
+        elif args[0] in 'events' :
+            if len(args) > 1:
+                await bot.send_message(message.channel, 'Too many arguments!')
+                return
+
+            output = '```\n'
+            events = event_table.find(serverid = message.server.id)
+            for event in events:
+                dtstr = event['startsat'].strftime('%m/%d/%y %I:%M%p')
+                output += 'Event #{} ({}) starts at {}\n'.format(event['id'], event['name'], dtstr)
+            output += '```'
+
+            await bot.send_message(message.channel, output)
 
 @bot.event
 async def on_ready():
