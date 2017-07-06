@@ -81,11 +81,11 @@ async def process_command(args, message):
         else: 
             await bot.send_message(message.channel, 'Invalid arguments!')
     elif not message.channel.is_private:
-        if not message.channel.permissions_for(message.author).administrator:
-            await bot.send_message(message.channel, 'You do not have permission to use this command!')
-            return
-
         if args[0] in 'event':
+            if not message.channel.permissions_for(message.author).administrator:
+                await bot.send_message(message.channel, 'You do not have permission to use this command!')
+                return
+
             if len(args) != 4:
                 await bot.send_message(message.channel, 'Invalid arguments!')
                 return
