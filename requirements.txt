@@ -1,0 +1,2 @@
+dataset==0.8.0
+discord.py==0.16.8
