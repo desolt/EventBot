@@ -138,7 +138,7 @@ async def process_command(args, message):
             try:
                 dtobj = datetime.strptime(dtstr, '%m/%d/%y %H:%M')
                 if datetime.utcnow() > dtobj:
-                    await bot.send_message(message.channel, 'An event should take place in the future!')
+                    await bot.send_message(message.channel, 'An event should take place in the future! (Remember to use UTC)')
                     return
             except ValueError:
                 await bot.send_message(message.channel, 'Invalid datetime format!')
@@ -171,7 +171,7 @@ async def process_command(args, message):
 
 @bot.event
 async def on_ready():
-    bot.change_status(discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
+    await bot.change_status(game = discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
     print('EventBot is now online!')
     await check_schedule()
 
