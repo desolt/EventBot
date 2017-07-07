@@ -31,9 +31,9 @@ commands_message = '```css\n' \
                    'eb!event <name> <mm/dd/yy> <hh:mm> - schedules an event\n' \
                    'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
                    'eb!events - shows the current scheduled events\n' \
-                   'eb!cancel <name> - cancels an event\n' \
-                   'eb!subscribe <name> - subscribes to an event\n' \
-                   'eb!unsubscribe <name> - unsubscribes from an event\n' \
+                   'eb!cancel <id> - cancels an event\n' \
+                   'eb!subscribe <id> - subscribes to an event\n' \
+                   'eb!unsubscribe <id> - unsubscribes from an event\n' \
                    'eb!subscriptions - lists subscribed events (DM only)\n' \
                    '```'
 
