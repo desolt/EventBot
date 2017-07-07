@@ -113,15 +113,20 @@ async def process_command(args, message):
            
         await bot.send_message(target, embed = embed)
 
-    async def get_event_id():
+    async def get_event():
         if len(args) != 2:
             await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
             return None
 
         try:
-            return int(args[1])
+            event_id = int(args[1])
         except ValueError:
             await bot.send_message(message.channel, ErrorMessages.BAD_ID)
+        event = event_table.find_one(id = event_id)
+        if event is None:
+            await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+        else:
+            return event
 
     if args[0] in 'info' or args[0] in 'help':
         await bot.send_message(message.channel, embed=info_embed)
@@ -129,21 +134,17 @@ async def process_command(args, message):
         if not message.channel.is_private: # No point in saying commands have been DMed in the DMs.
             await bot.send_message(message.channel, 'The commands have been DMed to you!')
     elif args[0] in 'subscribe':
-        event_id = await get_event_id()
-        if event_id is None: return
+        event = await get_event()
+        if event is None: return
 
-        event = event_table.find_one(id = event_id)
-        if event is None:
-            await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+        subscription_exists = subscription_table.find_one(userid = message.author.id, 
+                                                          eventid = event['id'])
+        if subscription_exists is None:
+            subscription_table.insert(dict(userid = message.author.id, 
+                                           eventid = event['id']))
+            await bot.send_message(message.channel, 'You are now subscribed to event #{}!'.format(event['id']))
         else:
-            subscription_exists = subscription_table.find_one(userid = message.author.id, 
-                eventid = event['id'])
-            if subscription_exists is None:
-                subscription_table.insert(dict(userid = message.author.id, 
-                    eventid = event['id']))
-                await bot.send_message(message.channel, 'You are now subscribed to event #{}!'.format(event['id']))
-            else:
-                await bot.send_message(message.channel, 'You are already subscribed to that event!')
+            await bot.send_message(message.channel, 'You are already subscribed to that event!')
 
     # These commands cannot be executed through DMs.
     elif not message.channel.is_private:
@@ -177,18 +178,14 @@ async def process_command(args, message):
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
             await bot.send_message(message.channel, embed = embed)
         elif args[0] in 'cancel':
-            event_id = await get_event_id()
-            if event_id is None: return
+            event = await get_event()
+            if event is None: return
 
-            event = event_table.find_one(id = event_id)
-            if event is not None:
-                event_table.delete(id = event_id)
-                await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event_id))
-            else:
-                await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+            event_table.delete(id = event['id'])
+            await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event['id']))
         elif args[0] in 'repeat':
-            event_id = await get_event_id()
-            if event_id is None: return
+            event = await get_event()
+            if event is None: return
         elif args[0] in 'events' :
             if len(args) > 1 and len(args) < 2:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
