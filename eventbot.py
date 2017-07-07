@@ -107,7 +107,7 @@ async def process_command(args, message):
         try:
             id = int(args[1])
         except ValueError:
-            await bot.send_message(message.channel, 'Invalid ID!')
+            await bot.send_message(message.channel, ErrorMessages.BAD_ID)
 
         event = event_table.find_one(id = id)
         if event is None:
@@ -137,13 +137,22 @@ async def process_command(args, message):
             dtstr = '{} {}'.format(args[2], args[3])
             try:
                 dtobj = datetime.strptime(dtstr, '%m/%d/%y %H:%M')
+                if datetime.utcnow() > dtobj:
+                    await bot.send_message(message.channel, 'An event should take place in the future!')
+                    return
             except ValueError:
                 await bot.send_message(message.channel, 'Invalid datetime format!')
                 return
-
+            
             id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
-            await bot.send_message(message.channel, 'Created event #{} named "{}" scheduled for {} UTC!'
-                    .format(id, args[1], dtobj.strftime('%m/%d/%y %I:%M%p')))
+
+            embed = discord.Embed(title = 'Created a new event!', 
+                                  description = args[1], 
+                                  color = 0x5cc0f2,
+                                  type = 'rich')
+            embed.add_field(name = 'ID', value = str(id))
+            embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
+            await bot.send_message(message.channel, embed = embed)
         elif args[0] in 'events' :
             if len(args) > 1:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
@@ -162,6 +171,7 @@ async def process_command(args, message):
 
 @bot.event
 async def on_ready():
+    bot.change_status(discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
     print('EventBot is now online!')
     await check_schedule()
 
