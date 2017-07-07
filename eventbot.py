@@ -57,7 +57,7 @@ class ErrorMessages(Enum):
         return str(self.value)
 
     INVALID_ARG  = 'Invalid arguments!'
-    PERMISSION   = 'You do not have permission to use this command'
+    PERMISSION   = 'You do not have permission to use this command!'
     BAD_EVENT    = 'That event does not exist!'
     BAD_ID       = 'Invalid ID!'
     BAD_PAGE_NUM = 'Invalid page number!'
