@@ -14,27 +14,6 @@ else:
     sys.exit()
 
 
-# command messages
-creator_id = '175753699224715264' # my discord user id
-github_link = 'https://github.com/desolt/EventBot'
-info_embed = discord.Embed(title='EventBot', 
-                           type='rich', 
-                           description='Helps discord admins manage events!\n\n' \
-                                       'Created by <@{}>'.format(creator_id),
-                           url=github_link)
-info_embed.set_thumbnail(url='http://www.thefamouspeople.com/profiles/images/huey-long-2.jpg')
-
-commands_message = '```css\n' \
-                   'eb!info - shows this menu.\n' \
-                   'eb!eventchannel <channel>\n' \
-                   'eb!event <name> <mm/dd/yy> <hh:mm UTC> - schedules an event\n' \
-                   'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
-                   'eb!events [page #] - shows the current scheduled events\n' \
-                   'eb!cancel <id> - cancels an event\n' \
-                   'eb!subscribe <id> - subscribes to an event\n' \
-                   'eb!unsubscribe <id> - unsubscribes from an event\n' \
-                   'eb!subscriptions [page #] - lists subscribed events (DM only)\n' \
-                   '```'
 
 # Bot stuff
 bot = discord.Client()
@@ -51,10 +30,7 @@ async def check_schedule():
             if datetime.utcnow() < event['startsat']:
                 continue
 
-            channel = db['server_settings'].find_one(event['serverid'])
-            if channel is not None: channel = channel['event_channel']
-            if channel is None:
-                channel = bot.get_server(event['serverid']).default_channel
+            channel = await get_event_channel(bot.get_server(event['serverid']))
 
             await bot.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
             for userid in subscription_table.find(eventid = event['id']):
@@ -92,8 +68,34 @@ async def on_message(message):
         return
 
     if message.content.startswith('eb!'):
-        await process_command(message.content[3:].split(' '), message)
+        args = message.content[3:].split(' ')
+        from commands import commands
+        cmd = commands.get(args[0])
+        if cmd is not None:
+            await cmd(bot, args, message)
 
+async def get_event(id):
+    event = event_table.find_one(id = id)
+    if event is None:
+        raise ValueError('Invalid event ID!')
+    return event
+
+async def get_event_channel(server, bot):
+    channel = db['server_settings'].find_one(serverid = server.id)
+    if channel is None:
+        channel = server.default_channel
+    else:
+        channel = bot.get_channel(channel['eventchannel'])
+    return channel
+
+async def set_event_channel(server, channel):
+    settings = dict(eventchannel = channel.id, serverid = server.id)
+    if db['server_settings'].find_one(serverid = server.id) is None:
+        db['server_settings'].insert(settings)
+    else:
+        db['server_settings'].update(settings, ['serverid'])
+
+'''
 async def process_command(args, message):
     async def get_pos_num_at(index):
         if len(args) < index:
@@ -252,6 +254,7 @@ async def process_command(args, message):
                 await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
                 return
             await print_events(message.author, subscriptions, page)
+            '''
 
 @bot.event
 async def on_ready():
