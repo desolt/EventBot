@@ -113,7 +113,7 @@ async def process_command(args, message):
            
         await bot.send_message(target, embed = embed)
 
-    if args[0] in 'info':
+    if args[0] in 'info' or args[0] in 'help':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
         if not message.channel.is_private: # No point in saying commands have been DMed in the DMs.
@@ -172,6 +172,22 @@ async def process_command(args, message):
             embed.add_field(name = 'ID', value = str(id))
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
             await bot.send_message(message.channel, embed = embed)
+        elif args[0] in 'cancel':
+            if len(args) != 2:
+                await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+                return
+
+            try:
+                eventid = int(args[1])
+            except ValueError:
+                await bot.send_message(message.channel, ErrorMessages.BAD_ID)
+
+            event = event_table.find_one(id = eventid)
+            if event is not None:
+                event_table.delete(id = eventid)
+                await bot.send_message(message.channel, 'Event #{} cancelled!'.format(eventid))
+            else:
+                await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
         elif args[0] in 'events' :
             if len(args) > 1 and len(args) < 2:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
