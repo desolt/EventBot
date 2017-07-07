@@ -30,11 +30,11 @@ commands_message = '```css\n' \
                    'eb!eventchannel <channel>\n' \
                    'eb!event <name> <mm/dd/yy> <hh:mm> - schedules an event\n' \
                    'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
-                   'eb!events - shows the current scheduled events\n' \
+                   'eb!events [page #] - shows the current scheduled events\n' \
                    'eb!cancel <id> - cancels an event\n' \
                    'eb!subscribe <id> - subscribes to an event\n' \
                    'eb!unsubscribe <id> - unsubscribes from an event\n' \
-                   'eb!subscriptions - lists subscribed events (DM only)\n' \
+                   'eb!subscriptions [page #] - lists subscribed events (DM only)\n' \
                    '```'
 
 # Bot stuff
@@ -89,10 +89,11 @@ class ErrorMessages(Enum):
     def __str__(self):
         return str(self.value)
 
-    INVALID_ARG = 'Invalid arguments!'
-    PERMISSION  = 'You do not have permission to use this command'
-    BAD_EVENT   = 'That event does not exist!'
-    BAD_ID      = 'Invalid ID!'
+    INVALID_ARG  = 'Invalid arguments!'
+    PERMISSION   = 'You do not have permission to use this command'
+    BAD_EVENT    = 'That event does not exist!'
+    BAD_ID       = 'Invalid ID!'
+    BAD_PAGE_NUM = 'Invalid page number!'
 
 async def process_command(args, message):
     if args[0] in 'info':
@@ -148,7 +149,7 @@ async def process_command(args, message):
 
             embed = discord.Embed(title = 'Created a new event!', 
                                   description = args[1], 
-                                  color = 0x5cc0f2,
+                                  color = 0x5cc0f2, # Color is a nice sky blue.
                                   type = 'rich')
             embed.add_field(name = 'ID', value = str(id))
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
@@ -168,6 +169,41 @@ async def process_command(args, message):
             output += '```'
 
             await bot.send_message(message.channel, output)
+    else: # DM only commands (namely eb!subscriptions)
+        if args[0] in 'subscriptions':
+            if len(args) > 1 and len(args) < 2:
+                await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+                return
+
+            page = 1 # default page
+            if len(args) == 2:
+                try:
+                    page = int(args[1])
+                    if page < 0: raise ValueError()
+                except ValueError:
+                    await bot.send_message(message.channel, ErrorMessages.BAD_PAGE_NUM)
+                    return
+
+            subscriptions = []
+            for subscription in subscription_table.find(userid = message.author.id, 
+                                                       order_by = ['id'], 
+                                                       _limit=5, 
+                                                       _offset=((page - 1) * 5)):
+                subscriptions.append(event_table.find_one(id = subscription['eventid']))
+
+            if len(subscriptions) == 0:
+                await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
+                return
+
+            reply = 'Page #{}:\n```\n'.format(page)
+            for event in subscriptions:
+                if event is None: continue
+                reply += 'Event "{}" (#{}) on "{}" scheduled for {}.\n'.format(event['name'], 
+                                                                               event['id'], 
+                                                                               bot.get_server(event['serverid']).name, 
+                                                                               event['startsat'].strftime("%m/%d/%y %I:%M%p-UTC"))
+            reply += '```'
+            await bot.send_message(message.author, reply)
 
 @bot.event
 async def on_ready():
