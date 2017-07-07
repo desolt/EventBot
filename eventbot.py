@@ -28,7 +28,7 @@ info_embed.set_thumbnail(url='http://www.thefamouspeople.com/profiles/images/hue
 commands_message = '```css\n' \
                    'eb!info - shows this menu.\n' \
                    'eb!eventchannel <channel>\n' \
-                   'eb!event <name> <mm/dd/yy> <hh:mm> - schedules an event\n' \
+                   'eb!event <name> <mm/dd/yy> <hh:mm UTC> - schedules an event\n' \
                    'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
                    'eb!events [page #] - shows the current scheduled events\n' \
                    'eb!cancel <id> - cancels an event\n' \
@@ -97,12 +97,12 @@ class ErrorMessages(Enum):
     BAD_PAGE_NUM = 'Invalid page number!'
 
 async def process_command(args, message):
-    async def pages(args):
+    async def pages():
         x = int(args[1])
         if x < 0: raise ValueError() 
         return x
     
-    async def print_events(message, target, events, page):
+    async def print_events(target, events, page):
         desc = ''
         for event in events:
             desc += '**ID:** {}\n'.format(event['id'])
@@ -113,22 +113,26 @@ async def process_command(args, message):
            
         await bot.send_message(target, embed = embed)
 
+    async def get_event_id():
+        if len(args) != 2:
+            await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+            return None
+
+        try:
+            return int(args[1])
+        except ValueError:
+            await bot.send_message(message.channel, ErrorMessages.BAD_ID)
+
     if args[0] in 'info' or args[0] in 'help':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
         if not message.channel.is_private: # No point in saying commands have been DMed in the DMs.
             await bot.send_message(message.channel, 'The commands have been DMed to you!')
     elif args[0] in 'subscribe':
-        if len(args) != 2:
-            await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
-            return
+        event_id = await get_event_id()
+        if event_id is None: return
 
-        try:
-            id = int(args[1])
-        except ValueError:
-            await bot.send_message(message.channel, ErrorMessages.BAD_ID)
-
-        event = event_table.find_one(id = id)
+        event = event_table.find_one(id = event_id)
         if event is None:
             await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
         else:
@@ -173,21 +177,18 @@ async def process_command(args, message):
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
             await bot.send_message(message.channel, embed = embed)
         elif args[0] in 'cancel':
-            if len(args) != 2:
-                await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
-                return
+            event_id = await get_event_id()
+            if event_id is None: return
 
-            try:
-                eventid = int(args[1])
-            except ValueError:
-                await bot.send_message(message.channel, ErrorMessages.BAD_ID)
-
-            event = event_table.find_one(id = eventid)
+            event = event_table.find_one(id = event_id)
             if event is not None:
-                event_table.delete(id = eventid)
-                await bot.send_message(message.channel, 'Event #{} cancelled!'.format(eventid))
+                event_table.delete(id = event_id)
+                await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event_id))
             else:
                 await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+        elif args[0] in 'repeat':
+            event_id = await get_event_id()
+            if event_id is None: return
         elif args[0] in 'events' :
             if len(args) > 1 and len(args) < 2:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
@@ -196,7 +197,7 @@ async def process_command(args, message):
             page = 1
             if len(args) == 2: 
                 try: 
-                    page = await pages(args)
+                    page = await pages()
                 except ValueError:
                     await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
                     return
@@ -210,7 +211,7 @@ async def process_command(args, message):
             if len(total_events) == 0:
                 await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
                 return
-            await print_events(message, message.channel, total_events, page)
+            await print_events(message.channel, total_events, page)
     else: # DM only commands (namely eb!subscriptions)
         if args[0] in 'subscriptions':
             if len(args) > 1 and len(args) < 2:
@@ -220,7 +221,7 @@ async def process_command(args, message):
             page = 1 # default page
             if len(args) == 2:
                 try:
-                    page = await pages(args)
+                    page = await pages()
                 except ValueError:
                     await bot.send_message(message.channel, ErrorMessages.BAD_PAGE_NUM)
                     return
@@ -235,7 +236,7 @@ async def process_command(args, message):
             if len(subscriptions) == 0:
                 await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
                 return
-            await print_events(message, message.author, subscriptions, page)
+            await print_events(message.author, subscriptions, page)
 
 @bot.event
 async def on_ready():
