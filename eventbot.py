@@ -4,6 +4,7 @@ import dataset, json
 import sys, os
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+from enum import Enum
 
 # Obtain config from config.json
 if os.path.isfile('config.json'):
@@ -24,13 +25,16 @@ info_embed = discord.Embed(title='EventBot',
                            url=github_link)
 info_embed.set_thumbnail(url='http://www.thefamouspeople.com/profiles/images/huey-long-2.jpg')
 
-commands_message = '```\n' \
+commands_message = '```css\n' \
                    'eb!info - shows this menu.\n' \
+                   'eb!eventchannel <channel>\n' \
                    'eb!event <name> <mm/dd/yy> <hh:mm> - schedules an event\n' \
+                   'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
                    'eb!events - shows the current scheduled events\n' \
                    'eb!cancel <name> - cancels an event\n' \
                    'eb!subscribe <name> - subscribes to an event\n' \
                    'eb!unsubscribe <name> - unsubscribes from an event\n' \
+                   'eb!subscriptions - lists subscribed events (DM only)\n' \
                    '```'
 
 # Bot stuff
@@ -44,8 +48,34 @@ subscription_table = db['subscriptions']
 # Meat and potatoes
 async def check_schedule():
     while True:
+        for event in event_table.all():
+            if datetime.utcnow() < event['startsat']:
+                continue
+
+            channel = db['server_settings'].find_one(event['serverid'])
+            if channel is not None: channel = channel['event_channel']
+            if channel is None:
+                channel = bot.get_server(event['serverid']).default_channel
+
+            await bot.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
+            for userid in subscription_table.find(eventid = event['id']):
+                try:
+                    user = await bot.get_user_info(userid['userid'])
+                    print('Found user!')
+                    await bot.send_message(user, 'Event "{}" has started!'.format(event['name']))
+                except discord.NotFound: pass
+            if 'repeat' not in event or not event['repeat']:
+                subscription_table.delete(eventid = event['id'])
+
+            if 'repeat' in event and event['repeat']: 
+                # Delays the event to next week.
+                newstartsat = event['startsat'] + datetime.timedelta(days = 7),
+                event_table.update(dict(startsat = newstartsat, id = event['id']), ['startsat'])
+            else:
+                event_table.delete(id = event['id'])
+            print('Event #{} has started!'.format(event['id']))
+
         await asyncio.sleep(60) # Wait every minute to check for an event.
-        print('Test!')
 
 @bot.event
 async def on_message(message):
@@ -55,39 +85,53 @@ async def on_message(message):
     if message.content.startswith('eb!'):
         await process_command(message.content[3:].split(' '), message)
 
+class ErrorMessages(Enum):
+    def __str__(self):
+        return str(self.value)
+
+    INVALID_ARG = 'Invalid arguments!'
+    PERMISSION  = 'You do not have permission to use this command'
+    BAD_EVENT   = 'That event does not exist!'
+    BAD_ID      = 'Invalid ID!'
+
 async def process_command(args, message):
     if args[0] in 'info':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
         await bot.send_message(message.channel, 'The commands have been DMed to you!')
     elif args[0] in 'subscribe':
-        if len(args) == 2:
-            try:
-                id = int(args[1])
-                event = event_table.find_one(id = id)
-                if event is None:
-                    await bot.send_message(message.channel, 'That event does not exist!')
-                else:
-                    subscription_exists = subscription_table.find_one(user_id = message.author.id, 
-                                                                      event_id = event['id'])
-                    if subscription_exists is None:
-                        subscription_table.insert(dict(user_id = message.author.id, 
-                                                       event_id = event['id']))
-                        await bot.send_message(message.channel, 'You are now subscribed to event {}!'.format(event.id))
-                    else:
-                        await bot.send_message(message.channel, 'You are already subscribed to that event!')
-            except ValueError:
-                await bot.send_message(message.channel, 'Invalid ID!')
-        else: 
-            await bot.send_message(message.channel, 'Invalid arguments!')
+        if len(args) != 2:
+            await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+            return
+
+        try:
+            id = int(args[1])
+        except ValueError:
+            await bot.send_message(message.channel, 'Invalid ID!')
+
+        event = event_table.find_one(id = id)
+        if event is None:
+            await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+        else:
+            subscription_exists = subscription_table.find_one(userid = message.author.id, 
+                eventid = event['id'])
+            if subscription_exists is None:
+                subscription_table.insert(dict(userid = message.author.id, 
+                    eventid = event['id']))
+                await bot.send_message(message.channel, 'You are now subscribed to event {}!'.format(event['id']))
+            else:
+                await bot.send_message(message.channel, 'You are already subscribed to that event!')
+
+    # These commands cannot be executed through DMs.
     elif not message.channel.is_private:
         if args[0] in 'event':
-            if not message.channel.permissions_for(message.author).administrator:
-                await bot.send_message(message.channel, 'You do not have permission to use this command!')
+            # Only admins can make events. TODO: Allow custom roles to make events w/ server settings.
+            if not message.channel.permissions_for(message.author).administrator: 
+                await bot.send_message(message.channel, ErrorMessages.PERMISSION)
                 return
 
             if len(args) != 4:
-                await bot.send_message(message.channel, 'Invalid arguments!')
+                await bot.send_message(message.channel, str(ErrorMessages.INVALID_ARG))
                 return
 
             dtstr = '{} {}'.format(args[2], args[3])
@@ -97,11 +141,14 @@ async def process_command(args, message):
                 await bot.send_message(message.channel, 'Invalid datetime format!')
                 return
 
-            id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj))
-            await bot.send_message(message.channel, 'Created event #{} named "{}" scheduled for {}!'.format(id, args[1], dtobj.strftime('%m/%d/%y %I:%M%p')))
+            id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
+            await bot.send_message(message.channel, 'Created event #{} named "{}" scheduled for {} UTC!'
+                    .format(id, args[1], dtobj.strftime('%m/%d/%y %I:%M%p')))
         elif args[0] in 'events' :
             if len(args) > 1:
-                await bot.send_message(message.channel, 'Too many arguments!')
+                await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+                print(ErrorMessages.INVALID_ARG)
+                print(str(ErrorMessages.INVALID_ARG))
                 return
 
             output = '```\n'
