@@ -99,7 +99,8 @@ async def process_command(args, message):
     if args[0] in 'info':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
-        await bot.send_message(message.channel, 'The commands have been DMed to you!')
+        if not message.channel.is_private: # No point in saying commands have been DMed in the DMs.
+            await bot.send_message(message.channel, 'The commands have been DMed to you!')
     elif args[0] in 'subscribe':
         if len(args) != 2:
             await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
@@ -196,12 +197,17 @@ async def process_command(args, message):
                 return
 
             embed = discord.Embed(title = 'Page #{} subscriptions'.format(page), color = 0xdafc1b)
+            id = name = server = when = ''
             for event in subscriptions:
                 if event is None: continue
-                embed.add_field(name = 'ID', value = str(event['id']))
-                embed.add_field(name = 'Name', value = event['name'])
-                embed.add_field(name = 'Server', value = bot.get_server(event['serverid']).name)
-                embed.add_field(name = 'When', value = event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'), inline = False)
+                id += '{}\n'.format(event['id'])
+                name += '{}\n'.format(event['name'])
+                server += '{}\n'.format(bot.get_server(event['serverid']).name)
+                when += '{}\n'.format(event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'))
+            embed.add_field(name = 'ID', value = id)
+            embed.add_field(name = 'Name', value = name)
+            embed.add_field(name = 'Server', value = server)
+            embed.add_field(name = 'When', value = when)   
             await bot.send_message(message.author, embed = embed)
 
 @bot.event
