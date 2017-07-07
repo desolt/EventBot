@@ -1,6 +1,6 @@
+@echo off
 REM This script has not yet been tested on a windows environment.
 
-@echo off
 if exist config.json (
     python3 eventbot.py
 ) else (
