@@ -10,7 +10,7 @@ There are three things you typically work with in EventBot - subscriptions, even
 
 Users can see all of the active events on a server by typing in "eb!events" on any channel. To subscribe to an event one should do "eb!subscribe <event id>", and to unsubscribe "eb!unsubscribe <event id>". Subscribing means on top of the message the bot will send in the events channel, it will send you a DM when an event starts.
 
-## For admins:
+### For admins:
 
 **NOTE**: As of right now your role must have the "Administrator" permission to manage events. This may change in the future.
 
