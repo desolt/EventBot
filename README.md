@@ -21,6 +21,7 @@ To create an event type the following:
 It is important to note that the event name should not have any spaces in it.
 
 Examples of <mm/dd/yy>:
+
     07/04/17
     4/20/18
 
