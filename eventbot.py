@@ -195,15 +195,14 @@ async def process_command(args, message):
                 await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
                 return
 
-            reply = 'Page #{}:\n```\n'.format(page)
+            embed = discord.Embed(title = 'Page #{} subscriptions'.format(page), color = 0xdafc1b)
             for event in subscriptions:
                 if event is None: continue
-                reply += '"{}" (#{}) on "{}" scheduled for {}.\n'.format(event['name'], 
-                                                                         event['id'], 
-                                                                         bot.get_server(event['serverid']).name, 
-                                                                         event['startsat'].strftime("%m/%d/%y %I:%M%p-UTC"))
-            reply += '```'
-            await bot.send_message(message.author, reply)
+                embed.add_field(name = 'ID', value = str(event['id']))
+                embed.add_field(name = 'Name', value = event['name'])
+                embed.add_field(name = 'Server', value = bot.get_server(event['serverid']).name)
+                embed.add_field(name = 'When', value = event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'), inline = False)
+            await bot.send_message(message.author, embed = embed)
 
 @bot.event
 async def on_ready():
