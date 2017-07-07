@@ -198,16 +198,16 @@ async def process_command(args, message):
             reply = 'Page #{}:\n```\n'.format(page)
             for event in subscriptions:
                 if event is None: continue
-                reply += 'Event "{}" (#{}) on "{}" scheduled for {}.\n'.format(event['name'], 
-                                                                               event['id'], 
-                                                                               bot.get_server(event['serverid']).name, 
-                                                                               event['startsat'].strftime("%m/%d/%y %I:%M%p-UTC"))
+                reply += '"{}" (#{}) on "{}" scheduled for {}.\n'.format(event['name'], 
+                                                                         event['id'], 
+                                                                         bot.get_server(event['serverid']).name, 
+                                                                         event['startsat'].strftime("%m/%d/%y %I:%M%p-UTC"))
             reply += '```'
             await bot.send_message(message.author, reply)
 
 @bot.event
 async def on_ready():
-    await bot.change_status(game = discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
+    await bot.change_presence(game = discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
     print('EventBot is now online!')
     await check_schedule()
 
