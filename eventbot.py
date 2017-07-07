@@ -2,7 +2,6 @@
 import asyncio, discord
 import dataset, json
 import sys, os
-from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from enum import Enum
 
