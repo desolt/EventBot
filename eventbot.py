@@ -77,6 +77,7 @@ async def check_schedule():
 
         await asyncio.sleep(60) # Wait every minute to check for an event.
 
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -96,6 +97,22 @@ class ErrorMessages(Enum):
     BAD_PAGE_NUM = 'Invalid page number!'
 
 async def process_command(args, message):
+    async def pages(args):
+        x = int(args[1])
+        if x < 0: raise ValueError() 
+        return x
+    
+    async def print_events(message, target, events, page):
+        desc = ''
+        for event in events:
+            desc += '**ID:** {}\n'.format(event['id'])
+            desc += '**Name**: {}\n'.format(event['name'])
+            desc += '**Server**: {}\n'.format(bot.get_server(event['serverid']).name)
+            desc += '**When:** {}\n\n'.format(event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'))
+        embed = discord.Embed(title = 'Page #{}:'.format(page), color = 0xdafc1b, description = desc)
+           
+        await bot.send_message(target, embed = embed)
+
     if args[0] in 'info':
         await bot.send_message(message.channel, embed=info_embed)
         await bot.send_message(message.author,  'Commands:\n{}'.format(commands_message))
@@ -120,7 +137,7 @@ async def process_command(args, message):
             if subscription_exists is None:
                 subscription_table.insert(dict(userid = message.author.id, 
                     eventid = event['id']))
-                await bot.send_message(message.channel, 'You are now subscribed to event {}!'.format(event['id']))
+                await bot.send_message(message.channel, 'You are now subscribed to event #{}!'.format(event['id']))
             else:
                 await bot.send_message(message.channel, 'You are already subscribed to that event!')
 
@@ -156,20 +173,28 @@ async def process_command(args, message):
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
             await bot.send_message(message.channel, embed = embed)
         elif args[0] in 'events' :
-            if len(args) > 1:
+            if len(args) > 1 and len(args) < 2:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
-                print(ErrorMessages.INVALID_ARG)
-                print(str(ErrorMessages.INVALID_ARG))
                 return
 
-            output = '```\n'
-            events = event_table.find(serverid = message.server.id)
-            for event in events:
-                dtstr = event['startsat'].strftime('%m/%d/%y %I:%M%p')
-                output += 'Event #{} ({}) starts at {}\n'.format(event['id'], event['name'], dtstr)
-            output += '```'
+            page = 1
+            if len(args) == 2: 
+                try: 
+                    page = await pages(args)
+                except ValueError:
+                    await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
+                    return
 
-            await bot.send_message(message.channel, output)
+            events = event_table.find(serverid = message.server.id,
+                                      order_by = ['id'],
+                                      _limit = 5,
+                                      _offset = (page - 1) * 5)
+            total_events = []
+            for x in events: total_events.append(x)
+            if len(total_events) == 0:
+                await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
+                return
+            await print_events(message, message.channel, total_events, page)
     else: # DM only commands (namely eb!subscriptions)
         if args[0] in 'subscriptions':
             if len(args) > 1 and len(args) < 2:
@@ -179,36 +204,22 @@ async def process_command(args, message):
             page = 1 # default page
             if len(args) == 2:
                 try:
-                    page = int(args[1])
-                    if page < 0: raise ValueError()
+                    page = await pages(args)
                 except ValueError:
                     await bot.send_message(message.channel, ErrorMessages.BAD_PAGE_NUM)
                     return
 
             subscriptions = []
             for subscription in subscription_table.find(userid = message.author.id, 
-                                                       order_by = ['id'], 
-                                                       _limit=5, 
-                                                       _offset=((page - 1) * 5)):
+                                                        order_by = ['id'], 
+                                                        _limit = 5, 
+                                                        _offset = ((page - 1) * 5)):
                 subscriptions.append(event_table.find_one(id = subscription['eventid']))
 
             if len(subscriptions) == 0:
                 await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
                 return
-
-            embed = discord.Embed(title = 'Page #{} subscriptions'.format(page), color = 0xdafc1b)
-            id = name = server = when = ''
-            for event in subscriptions:
-                if event is None: continue
-                id += '{}\n'.format(event['id'])
-                name += '{}\n'.format(event['name'])
-                server += '{}\n'.format(bot.get_server(event['serverid']).name)
-                when += '{}\n'.format(event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'))
-            embed.add_field(name = 'ID', value = id)
-            embed.add_field(name = 'Name', value = name)
-            embed.add_field(name = 'Server', value = server)
-            embed.add_field(name = 'When', value = when)   
-            await bot.send_message(message.author, embed = embed)
+            await print_events(message, message.author, subscriptions, page)
 
 @bot.event
 async def on_ready():
