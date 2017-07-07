@@ -70,21 +70,12 @@ async def check_schedule():
             if 'repeat' in event and event['repeat']: 
                 # Delays the event to next week.
                 newstartsat = event['startsat'] + datetime.timedelta(days = 7),
-                event_table.update(dict(startsat = newstartsat, id = event['id']), ['startsat'])
+                event_table.update(dict(startsat = newstartsat, id = event['id']), ['id'])
             else:
                 event_table.delete(id = event['id'])
             print('Event #{} has started!'.format(event['id']))
 
         await asyncio.sleep(60) # Wait every minute to check for an event.
-
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    if message.content.startswith('eb!'):
-        await process_command(message.content[3:].split(' '), message)
 
 class ErrorMessages(Enum):
     def __str__(self):
@@ -96,10 +87,26 @@ class ErrorMessages(Enum):
     BAD_ID       = 'Invalid ID!'
     BAD_PAGE_NUM = 'Invalid page number!'
 
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    if message.content.startswith('eb!'):
+        await process_command(message.content[3:].split(' '), message)
+
 async def process_command(args, message):
-    async def pages():
-        x = int(args[1])
-        if x < 0: raise ValueError() 
+    async def get_pos_num_at(index):
+        if len(args) < index:
+            await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+            raise ValueError('There must be two arguments to access the page number.')
+
+        try:
+            x = int(args[index])
+            if x < 0: raise ValueError('The number must be postiive!')
+        except ValueError as e: 
+            await bot.send_message(message.channel, ErrorMessages.BAD_PAGE_NUM)
+            raise e
         return x
     
     async def print_events(target, events, page):
@@ -113,18 +120,12 @@ async def process_command(args, message):
            
         await bot.send_message(target, embed = embed)
 
-    async def get_event():
-        if len(args) != 2:
-            await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
-            return None
-
-        try:
-            event_id = int(args[1])
-        except ValueError:
-            await bot.send_message(message.channel, ErrorMessages.BAD_ID)
+    async def get_event(id_at):
+        event_id = await get_pos_num_at(id_at)
         event = event_table.find_one(id = event_id)
         if event is None:
             await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
+            raise ValueError('No event for event id {} at {}'.format(event_id, id_at))
         else:
             return event
 
@@ -134,8 +135,12 @@ async def process_command(args, message):
         if not message.channel.is_private: # No point in saying commands have been DMed in the DMs.
             await bot.send_message(message.channel, 'The commands have been DMed to you!')
     elif args[0] in 'subscribe':
-        event = await get_event()
-        if event is None: return
+        if len(args) != 2:
+            bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+            return
+
+        try: event = get_event(1) 
+        except ValueError: return
 
         subscription_exists = subscription_table.find_one(userid = message.author.id, 
                                                           eventid = event['id'])
@@ -178,26 +183,41 @@ async def process_command(args, message):
             embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
             await bot.send_message(message.channel, embed = embed)
         elif args[0] in 'cancel':
-            event = await get_event()
-            if event is None: return
+            if len(args) != 2:
+                await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+                return
+
+            try: event = await get_event(1)
+            except ValueError: return
 
             event_table.delete(id = event['id'])
             await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event['id']))
         elif args[0] in 'repeat':
-            event = await get_event()
-            if event is None: return
+            if len(args) != 2:
+                await bot.send_mesage(message.channel, ErrorMessages.INVALID_ARG)
+                return
+
+            try: event = await get_event(1)
+            except ValueError: return
+
+            repeat = not event['repeat']
+            if repeat is None: repeat = True
+
+            event_table.update(dict(id = event['id'], repeat = repeat), ['id'])
+            await bot.send_message(message.channel, 'Repeat for event #{} is now set to {}'.format(event['id'], repeat))
         elif args[0] in 'events' :
-            if len(args) > 1 and len(args) < 2:
+            if not message.channel.permissions_for(message.author).administrator:
+                await bot.send_message(message.channel, ErrorMessages.PERMISSION)
+                return
+
+            if len(args) > 2:
                 await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
                 return
 
             page = 1
             if len(args) == 2: 
-                try: 
-                    page = await pages()
-                except ValueError:
-                    await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
-                    return
+                try: page = get_pos_num_at(1)
+                except ValueError: return
 
             events = event_table.find(serverid = message.server.id,
                                       order_by = ['id'],
@@ -220,7 +240,6 @@ async def process_command(args, message):
                 try:
                     page = await pages()
                 except ValueError:
-                    await bot.send_message(message.channel, ErrorMessages.BAD_PAGE_NUM)
                     return
 
             subscriptions = []
