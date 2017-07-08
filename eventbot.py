@@ -13,47 +13,6 @@ else:
     print('Could not find config.json!', file=sys.stderr)
     sys.exit()
 
-logger = logging.getLogger()
-
-
-# Bot stuff
-bot = discord.Client()
-
-db = dataset.connect('mysql://{}:{}@{}/eventbot'
-        .format(config['sql']['user'], config['sql']['pass'], config['sql']['host']))
-event_table = db['events']
-subscription_table = db['subscriptions']
-
-# Meat and potatoes
-async def check_schedule():
-    global event_table
-    while True:
-        for event in event_table.all():
-            if datetime.utcnow() < event['startsat']:
-                continue
-
-            channel = await get_event_channel(bot.get_server(event['serverid']), bot)
-
-            await bot.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
-            for userid in subscription_table.find(eventid = event['id']):
-                try:
-                    user = await bot.get_user_info(userid['userid'])
-                    await bot.send_message(user, 'Event "{}" has started!'.format(event['name']))
-                except discord.NotFound: pass
-            if 'repeat' not in event or not event['repeat']:
-                subscription_table.delete(eventid = event['id'])
-
-            if 'repeat' in event and event['repeat']: 
-                # Delays the event to next week.
-                newstartsat = event['startsat'] + datetime.timedelta(days = 7),
-                event_table.update(dict(startsat = newstartsat, id = event['id']), ['id'])
-            else:
-                subscription_table.delete(eventid = event['id'])
-                event_table.delete(id = event['id'])
-            print('Event #{} has started!'.format(event['id']))
-            logger.log(logging.INFO, 'Event #{} has started!')
-
-        await asyncio.sleep(60) # Wait every minute to check for an event.
 
 class ErrorMessages(Enum):
     def __str__(self):
@@ -65,38 +24,91 @@ class ErrorMessages(Enum):
     BAD_ID       = 'Invalid ID!'
     BAD_PAGE_NUM = 'Invalid page number!'
 
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
+class EventBot(discord.Client):
+    def __init__(self):
+        # Logging
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s]: %(message)s')
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        self.logger = logging.getLogger(__name__)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
 
-    if message.content.startswith('eb!'):
-        args = message.content[3:].split(' ')
-        from commands import commands
-        cmd = commands.get(args[0])
-        if cmd is not None:
-            await cmd(bot, args, message)
+        # MySQL/dataset
+        self.db = dataset.connect('mysql://{}:{}@{}/eventbot'
+                             .format(config['sql']['user'], config['sql']['pass'], config['sql']['host']))
+        self.event_table = self.db['events']
+        self.subscription_table = self.db['subscriptions']
 
-async def get_event_channel(server, bot):
-    channel = db['server_settings'].find_one(serverid = server.id)
-    if channel is None:
-        channel = server.default_channel
-    else:
-        channel = bot.get_channel(channel['eventchannel'])
-    return channel
+        super().__init__()
 
-async def set_event_channel(server, channel):
-    settings = dict(eventchannel = channel.id, serverid = server.id)
-    if db['server_settings'].find_one(serverid = server.id) is None:
-        db['server_settings'].insert(settings)
-    else:
-        db['server_settings'].update(settings, ['serverid'])
 
-@bot.event
-async def on_ready():
-    await bot.change_presence(game = discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
-    print('EventBot is now online!')
-    await check_schedule()
+    async def on_ready(self):
+        await self.change_presence(game = discord.Game(name='eb!info | https://github.com/desolt/EventBot'))
+        self.logger.info('Servers joined: {}'.format(len(self.servers)))
+        self.logger.info('Events pending: {}'.format(self.event_table.count()))
+        self.logger.info('EventBot is now online!')
+        await self.check_schedule()
 
+    async def on_server_join(self, server):
+        self.logger.info('Joined servers {} ("{}")'.format(server.id, server.name))
+
+    async def on_message(self, message):
+        if message.author == self.user:
+            return
+
+        if message.content.startswith('eb!'):
+            args = message.content[3:].split(' ')
+            from commands import commands
+            cmd = commands.get(args[0])
+            if cmd is not None:
+                await cmd(self, args, message)
+
+
+    async def check_schedule(self):
+        while True:
+            for event in self.event_table.all():
+                if datetime.utcnow() < event['startsat']:
+                    continue
+
+                channel = await self.get_event_channel(self.get_server(event['serverid']), bot)
+
+                await self.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
+                for userid in self.subscription_table.find(eventid = event['id']):
+                    try:
+                        user = await self.get_user_info(userid['userid'])
+                        await self.send_message(user, 'Event "{}" has started!'.format(event['name']))
+                    except discord.NotFound: pass
+                if 'repeat' not in event or not event['repeat']:
+                    self.subscription_table.delete(eventid = event['id'])
+
+                if 'repeat' in event and event['repeat']: 
+                    # Delays the event to next week.
+                    newstartsat = event['startsat'] + datetime.timedelta(days = 7),
+                    self.event_table.update(dict(startsat = newstartsat, id = event['id']), ['id'])
+                else:
+                    self.subscription_table.delete(eventid = event['id'])
+                    self.event_table.delete(id = event['id'])
+                self.logger.info('Event #{} has started!'.format(event['id']))
+
+            await asyncio.sleep(60) # Wait every minute to check for an event.
+
+    async def get_event_channel(self, server, bot):
+        channel = self.db['server_settings'].find_one(serverid = server.id)
+        if channel is None:
+            channel = server.default_channel
+        else:
+            channel = self.get_channel(channel['eventchannel'])
+        return channel
+
+    async def set_event_channel(self, server, channel):
+        settings = dict(eventchannel = channel.id, serverid = server.id)
+        if self.db['server_settings'].find_one(serverid = server.id) is None:
+            self.db['server_settings'].insert(settings)
+        else:
+            self.db['server_settings'].update(settings, ['serverid'])
+
+bot = EventBot()
+    
 if __name__ == '__main__':
     bot.run(config['token'])

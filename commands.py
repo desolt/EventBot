@@ -1,5 +1,5 @@
 import discord
-from eventbot import ErrorMessages, get_event_channel, set_event_channel
+from eventbot import ErrorMessages
 from datetime import datetime
 
 # command messages
@@ -52,8 +52,7 @@ async def print_events(target, events, page, bot):
 
 async def get_event_at(args, id_at, message, bot):
     event_id = await get_pos_num_at(args, id_at, bot)
-    from eventbot import event_table
-    event = event_table.find_one(id = event_id)
+    event = bot.event_table.find_one(id = event_id)
     if event is None:
         await bot.send_message(message.channel, ErrorMessages.BAD_EVENT)
         raise ValueError('No event for event id {} at {}'.format(event_id, id_at))
@@ -93,13 +92,11 @@ async def subscribe(bot, args, message):
     try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
-    from eventbot import subscription_table
-    global subscription_table
-    subscription_exists = subscription_table.find_one(userid = message.author.id, 
-                                                      eventid = event['id'])
+    subscription_exists = bot.subscription_table.find_one(userid = message.author.id, 
+                                                          eventid = event['id'])
     if subscription_exists is None:
-        subscription_table.insert(dict(userid = message.author.id, 
-                                       eventid = event['id']))
+        bot.subscription_table.insert(dict(userid = message.author.id, 
+                                           eventid = event['id']))
         await bot.send_message(message.channel, 'You are now subscribed to event #{}!'.format(event['id']))
     else:
         await bot.send_message(message.channel, 'You are already subscribed to that event!')
@@ -112,9 +109,7 @@ async def unsubscribe(bot, args, message):
     try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
-    from eventbot import subscription_table
-    global subscription_table
-    subscription_table.delete(eventid = event['id'])
+    bot.subscription_table.delete(eventid = event['id'])
     await bot.send_message(message.channel, 'Unsubscribed from event #{}!'.format(event['id']))
 
 async def event(bot, args, message): 
@@ -138,9 +133,7 @@ async def event(bot, args, message):
         await bot.send_message(message.channel, 'Invalid datetime format!')
         return
             
-    from eventbot import event_table
-    global event_table
-    id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
+    id = bot.event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
 
     embed = discord.Embed(title = 'Created a new event!', 
                           description = args[1], 
@@ -159,9 +152,7 @@ async def cancel(bot, args, message):
     try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
-    from eventbot import event_table
-    global event_table
-    event_table.delete(id = event['id'])
+    bot.event_table.delete(id = event['id'])
     await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event['id']))
 
 async def events(bot, args, message):
@@ -175,12 +166,10 @@ async def events(bot, args, message):
         try: page = await get_pos_num_at(args, 1, bot)
         except ValueError: return
 
-    from eventbot import event_table
-    global event_table
-    events = event_table.find(serverid = message.server.id,
-                              order_by = ['id'],
-                              _limit = 5,
-                              _offset = (page - 1) * 5)
+    events = bot.event_table.find(serverid = message.server.id,
+                                  order_by = ['id'],
+                                  _limit = 5,
+                                  _offset = (page - 1) * 5)
     total_events = []
     for x in events: total_events.append(x)
     if len(total_events) == 0:
@@ -199,17 +188,14 @@ async def subscriptions(bot, args, message):
         try: page = await get_pos_num_at(args, 1, bot)
         except ValueError: return
 
-    from eventbot import event_table, subscription_table
-    global event_table
-    global subscription_table
     events = []
-    for subscription in subscription_table.find(userid = message.author.id, 
-                                                order_by = ['id'], 
-                                                _limit = 5, 
-                                                _offset = ((page - 1) * 5)):
-        event = event_table.find_one(id = subscription['eventid'])
+    for subscription in bot.subscription_table.find(userid = message.author.id, 
+                                                    order_by = ['id'], 
+                                                    _limit = 5, 
+                                                    _offset = ((page - 1) * 5)):
+        event = bot.event_table.find_one(id = subscription['eventid'])
         if event is None:
-            subscription_table.delete(eventid = subscription['eventid'])
+            bot.subscription_table.delete(eventid = subscription['eventid'])
             continue
         events.append(event)
 
@@ -217,6 +203,9 @@ async def subscriptions(bot, args, message):
         await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
         return
     await print_events(message.author, events, page, bot)
+
+async def repeat(bot, args, message):
+    pass
 
 commands = {
     'info': info,
