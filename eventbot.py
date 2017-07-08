@@ -2,7 +2,7 @@
 import asyncio, discord
 import dataset, json
 import logging, sys, os
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 class ErrorMessages(Enum):
@@ -75,8 +75,9 @@ class EventBot(discord.Client):
 
                 if 'repeat' in event and event['repeat']: 
                     # Delays the event to next week.
-                    newstartsat = event['startsat'] + datetime.timedelta(days = 7),
-                    self.event_table.update(dict(startsat = newstartsat, id = event['id']), ['id'])
+                    startsat = event['startsat']
+                    dtobj = startsat  + timedelta(days = 7),
+                    self.event_table.update(dict(startsat = dtobj[0], id = event['id']), ['id'])
                 else:
                     self.subscription_table.delete(eventid = event['id'])
                     self.event_table.delete(id = event['id'])

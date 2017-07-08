@@ -205,7 +205,19 @@ async def subscriptions(bot, args, message):
     await print_events(message.author, events, page, bot)
 
 async def repeat(bot, args, message):
-    pass
+    if len(args) != 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    try: event = await get_event_at(args, 1, message, bot)
+    except ValueError: return
+
+    repeat = not event['repeat']
+    if repeat is None:
+        repeat = True
+
+    bot.event_table.update(dict(id = event['id'], repeat = repeat), ['id'])
+    await bot.send_message(message.channel, 'Repeat for event #{} is now set to {}'.format(event['id'], repeat))
 
 commands = {
     'info': info,
@@ -217,4 +229,5 @@ commands = {
     'cancel': cancel,
     'events': events,
     'subscriptions': subscriptions,
+    'repeat': repeat,
 }
