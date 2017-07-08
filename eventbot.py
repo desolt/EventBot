@@ -30,13 +30,12 @@ async def check_schedule():
             if datetime.utcnow() < event['startsat']:
                 continue
 
-            channel = await get_event_channel(bot.get_server(event['serverid']))
+            channel = await get_event_channel(bot.get_server(event['serverid']), bot)
 
             await bot.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
             for userid in subscription_table.find(eventid = event['id']):
                 try:
                     user = await bot.get_user_info(userid['userid'])
-                    print('Found user!')
                     await bot.send_message(user, 'Event "{}" has started!'.format(event['name']))
                 except discord.NotFound: pass
             if 'repeat' not in event or not event['repeat']:

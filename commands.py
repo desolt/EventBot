@@ -41,6 +41,7 @@ async def get_pos_num_at(args, index, bot):
 async def print_events(target, events, page, bot):
     desc = ''
     for event in events:
+        if event is None: continue
         desc += '**ID:** {}\n'.format(event['id'])
         desc += '**Name**: {}\n'.format(event['name'])
         desc += '**Server**: {}\n'.format(bot.get_server(event['serverid']).name)
@@ -184,11 +185,16 @@ async def subscriptions(bot, args, message):
             return
 
     subscriptions = []
+    from eventbot import event_table
     from eventbot import subscription_table
     for subscription in subscription_table.find(userid = message.author.id, 
                                                 order_by = ['id'], 
                                                 _limit = 5, 
                                                 _offset = ((page - 1) * 5)):
+        if subscription is None:
+            subscription_table.delete(eventid = subscription['eventid'])
+            continue
+
         subscriptions.append(event_table.find_one(id = subscription['eventid']))
 
     if len(subscriptions) == 0:
