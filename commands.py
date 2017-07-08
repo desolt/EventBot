@@ -1,5 +1,6 @@
 import discord
 from eventbot import ErrorMessages, get_event_channel, set_event_channel
+from datetime import datetime
 
 # command messages
 creator_id = '175753699224715264' # my discord user id
