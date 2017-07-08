@@ -74,12 +74,6 @@ async def on_message(message):
         if cmd is not None:
             await cmd(bot, args, message)
 
-async def get_event(id):
-    event = event_table.find_one(id = id)
-    if event is None:
-        raise ValueError('Invalid event ID!')
-    return event
-
 async def get_event_channel(server, bot):
     channel = db['server_settings'].find_one(serverid = server.id)
     if channel is None:
