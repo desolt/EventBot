@@ -103,6 +103,18 @@ async def subscribe(bot, args, message):
     else:
         await bot.send_message(message.channel, 'You are already subscribed to that event!')
 
+async def unsubscribe(bot, args, message):
+    if len(args) != 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    try: event = await get_event_at(args, 1, bot)
+    except ValueError: return
+
+    from eventbot import subscription_table
+    subscription_table.delete(eventid = event['id'])
+    await bot.send_message(message.channel, 'Unsubscribed from event #{}!'.format(event['id']))
+
 async def event(bot, args, message): 
     if message.channel.is_private: return
     # Only admins can make events. TODO: Allow custom roles to make events w/ server settings
@@ -194,7 +206,6 @@ async def subscriptions(bot, args, message):
         if subscription is None:
             subscription_table.delete(eventid = subscription['eventid'])
             continue
-
         subscriptions.append(event_table.find_one(id = subscription['eventid']))
 
     if len(subscriptions) == 0:
@@ -207,6 +218,7 @@ commands = {
     'help': info,
     'eventchannel': eventchannel,
     'subscribe': subscribe,
+    'unsubscribe': unsubscribe,
     'event': event,
     'cancel': cancel,
     'events': events,
