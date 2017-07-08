@@ -46,6 +46,7 @@ async def check_schedule():
                 newstartsat = event['startsat'] + datetime.timedelta(days = 7),
                 event_table.update(dict(startsat = newstartsat, id = event['id']), ['id'])
             else:
+                subscription_table.delete(eventid = event['id'])
                 event_table.delete(id = event['id'])
             print('Event #{} has started!'.format(event['id']))
 
