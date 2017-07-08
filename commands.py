@@ -72,12 +72,12 @@ async def info(bot, args, message):
 
 async def eventchannel(bot, args, message):
     if len(args) == 1:
-        channel = await get_event_channel(message.server, bot)
+        channel = await bot.get_event_channel(message.server, bot)
         await bot.send_message(message.channel, 'The event channel is <#{}>.'.format(channel.id))
     elif len(args) == 2:
         try:
             new_channel = message.channel_mentions[0]
-            await set_event_channel(message.server, new_channel)
+            await bot.set_event_channel(message.server, new_channel)
             await bot.send_message(message.channel, '<#{}> is now the event channel!'.format(new_channel.id))
         except KeyError:
             await bot.send_message(message.channel, 'No channel mentioned! ex: eb!eventchannel #general')

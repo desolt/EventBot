@@ -5,15 +5,6 @@ import logging, sys, os
 from datetime import datetime
 from enum import Enum
 
-# Obtain config from config.json
-if os.path.isfile('config.json'):
-    with open('config.json') as config_file:
-        config = json.loads(config_file.read())
-else:
-    print('Could not find config.json!', file=sys.stderr)
-    sys.exit()
-
-
 class ErrorMessages(Enum):
     def __str__(self):
         return str(self.value)
@@ -108,7 +99,13 @@ class EventBot(discord.Client):
         else:
             self.db['server_settings'].update(settings, ['serverid'])
 
-bot = EventBot()
-    
 if __name__ == '__main__':
-    bot.run(config['token'])
+    # Obtain config from config.json
+    if os.path.isfile('config.json'):
+        with open('config.json') as config_file:
+            config = json.loads(config_file.read())
+            bot = EventBot()
+            bot.run(config['token'])
+    else:
+        print('Could not find config.json!', file=sys.stderr)
+    
