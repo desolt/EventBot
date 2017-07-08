@@ -50,7 +50,7 @@ async def print_events(target, events, page, bot):
            
     await bot.send_message(target, embed = embed)
 
-async def get_event_at(args, id_at, bot):
+async def get_event_at(args, id_at, message, bot):
     event_id = await get_pos_num_at(args, id_at, bot)
     from eventbot import event_table
     event = event_table.find_one(id = event_id)
@@ -90,10 +90,11 @@ async def subscribe(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
-    try: event = await get_event_at(args, 1, bot)
+    try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
     from eventbot import subscription_table
+    global subscription_table
     subscription_exists = subscription_table.find_one(userid = message.author.id, 
                                                       eventid = event['id'])
     if subscription_exists is None:
@@ -108,10 +109,11 @@ async def unsubscribe(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
-    try: event = await get_event_at(args, 1, bot)
+    try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
     from eventbot import subscription_table
+    global subscription_table
     subscription_table.delete(eventid = event['id'])
     await bot.send_message(message.channel, 'Unsubscribed from event #{}!'.format(event['id']))
 
@@ -137,6 +139,7 @@ async def event(bot, args, message):
         return
             
     from eventbot import event_table
+    global event_table
     id = event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
 
     embed = discord.Embed(title = 'Created a new event!', 
@@ -153,10 +156,11 @@ async def cancel(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
-    try: event = await get_event_at(args, 1, bot)
+    try: event = await get_event_at(args, 1, message, bot)
     except ValueError: return
 
     from eventbot import event_table
+    global event_table
     event_table.delete(id = event['id'])
     await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event['id']))
 
@@ -172,6 +176,7 @@ async def events(bot, args, message):
         except ValueError: return
 
     from eventbot import event_table
+    global event_table
     events = event_table.find(serverid = message.server.id,
                               order_by = ['id'],
                               _limit = 5,
@@ -191,27 +196,27 @@ async def subscriptions(bot, args, message):
 
     page = 1 # default page
     if len(args) == 2:
-        try:
-            page = await pages()
-        except ValueError:
-            return
+        try: page = await get_pos_num_at(args, 1, bot)
+        except ValueError: return
 
-    subscriptions = []
-    from eventbot import event_table
-    from eventbot import subscription_table
+    from eventbot import event_table, subscription_table
+    global event_table
+    global subscription_table
+    events = []
     for subscription in subscription_table.find(userid = message.author.id, 
                                                 order_by = ['id'], 
                                                 _limit = 5, 
                                                 _offset = ((page - 1) * 5)):
-        if subscription is None:
+        event = event_table.find_one(id = subscription['eventid'])
+        if event is None:
             subscription_table.delete(eventid = subscription['eventid'])
             continue
-        subscriptions.append(event_table.find_one(id = subscription['eventid']))
+        events.append(event)
 
-    if len(subscriptions) == 0:
+    if len(events) == 0:
         await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
         return
-    await print_events(message.author, subscriptions, page, bot)
+    await print_events(message.author, events, page, bot)
 
 commands = {
     'info': info,

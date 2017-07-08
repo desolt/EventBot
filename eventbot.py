@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import asyncio, discord
 import dataset, json
-import sys, os
+import logging, sys, os
 from datetime import datetime
 from enum import Enum
 
@@ -13,6 +13,7 @@ else:
     print('Could not find config.json!', file=sys.stderr)
     sys.exit()
 
+logger = logging.getLogger()
 
 
 # Bot stuff
@@ -25,6 +26,7 @@ subscription_table = db['subscriptions']
 
 # Meat and potatoes
 async def check_schedule():
+    global event_table
     while True:
         for event in event_table.all():
             if datetime.utcnow() < event['startsat']:
@@ -49,6 +51,7 @@ async def check_schedule():
                 subscription_table.delete(eventid = event['id'])
                 event_table.delete(id = event['id'])
             print('Event #{} has started!'.format(event['id']))
+            logger.log(logging.INFO, 'Event #{} has started!')
 
         await asyncio.sleep(60) # Wait every minute to check for an event.
 
