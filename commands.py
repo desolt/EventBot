@@ -48,7 +48,7 @@ async def print_events(target, events, page, bot):
            
     await bot.send_message(target, embed = embed)
 
-async def get_event(args, id_at, bot):
+async def get_event_at(args, id_at, bot):
     event_id = await get_pos_num_at(args, id_at, bot)
     from eventbot import event_table
     event = event_table.find_one(id = event_id)
@@ -84,12 +84,12 @@ async def eventchannel(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
 
 async def subscribe(bot, args, message):
-    if len(args != 2):
-        bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+    if len(args) != 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
-    try: event = get_event(args, args[1], bot)
-    except: return
+    try: event = await get_event_at(args, 1, bot)
+    except ValueError: return
 
     from eventbot import subscription_table
     subscription_exists = subscription_table.find_one(userid = message.author.id, 
@@ -133,6 +133,67 @@ async def event(bot, args, message):
     embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
     await bot.send_message(message.channel, embed = embed)
 
+async def cancel(bot, args, message):
+    if message.channel.is_private: return
+    if len(args) != 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    try: event = await get_event_at(args, 1, bot)
+    except ValueError: return
+
+    from eventbot import event_table
+    event_table.delete(id = event['id'])
+    await bot.send_message(message.channel, 'Event #{} cancelled!'.format(event['id']))
+
+async def events(bot, args, message):
+    if message.channel.is_private: return
+    if len(args) > 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+    
+    page = 1
+    if len(args) == 2: 
+        try: page = await get_pos_num_at(args, 1, bot)
+        except ValueError: return
+
+    from eventbot import event_table
+    events = event_table.find(serverid = message.server.id,
+                              order_by = ['id'],
+                              _limit = 5,
+                              _offset = (page - 1) * 5)
+    total_events = []
+    for x in events: total_events.append(x)
+    if len(total_events) == 0:
+        await bot.send_message(message.channel, 'No events on page #{}.'.format(page))
+        return
+    await print_events(message.channel, total_events, page, bot)
+
+async def subscriptions(bot, args, message):
+    if not message.channel.is_private: return
+    if len(args) > 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    page = 1 # default page
+    if len(args) == 2:
+        try:
+            page = await pages()
+        except ValueError:
+            return
+
+    subscriptions = []
+    from eventbot import subscription_table
+    for subscription in subscription_table.find(userid = message.author.id, 
+                                                order_by = ['id'], 
+                                                _limit = 5, 
+                                                _offset = ((page - 1) * 5)):
+        subscriptions.append(event_table.find_one(id = subscription['eventid']))
+
+    if len(subscriptions) == 0:
+        await bot.send_message(message.channel, 'No subscriptions on page #{}.'.format(page))
+        return
+    await print_events(message.author, subscriptions, page, bot)
 
 commands = {
     'info': info,
@@ -140,4 +201,7 @@ commands = {
     'eventchannel': eventchannel,
     'subscribe': subscribe,
     'event': event,
+    'cancel': cancel,
+    'events': events,
+    'subscriptions': subscriptions,
 }
