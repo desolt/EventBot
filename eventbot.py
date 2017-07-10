@@ -126,7 +126,9 @@ class EventBot(discord.Client):
         if channel is None:
             channel = server.default_channel
         else:
-            channel = self.get_channel(channel['eventchannel'])
+            try:
+                channel = self.get_channel(channel['eventchannel'])
+            except KeyError: channel = None
             if channel is None: return server.default_channel
         return channel
 
