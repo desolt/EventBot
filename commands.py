@@ -128,18 +128,20 @@ async def event(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
+    zone = await bot.get_timezone(message.server)
     dtstr = '{} {}'.format(args[2], args[3])
     try:
        dtobj = datetime.strptime(dtstr, '%m/%d/%y %H:%M')
+       dtobj -= zones[zone]
        if datetime.utcnow() > dtobj:
-            await bot.send_message(message.channel, 'An event should take place in the future! (Remember to use UTC)')
+            await bot.send_message(message.channel, 'An event should take place in the future! (Remember to use {})'
+                    .format(zone))
             return
     except ValueError:
         await bot.send_message(message.channel, 'Invalid datetime format!')
         return
             
     id = bot.event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
-
     embed = discord.Embed(title = 'Created a new event!', 
                           description = args[1], 
                           color = 0x5cc0f2, # Color is a nice sky blue.
@@ -250,7 +252,6 @@ async def timezones(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
         return
 
-    from eventbot import zones
     desc = ''
     for zone in zones:
         desc += '{}\n'.format(zone)
