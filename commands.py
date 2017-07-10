@@ -10,7 +10,7 @@ info_embed = discord.Embed(title='EventBot',
                            description='Helps discord admins manage events!\n\n' \
                                        'Created by <@{}>'.format(creator_id),
                            url=github_link)
-info_embed.set_thumbnail(url='http://i.imgur.com/AvBT7mC.jpg')
+info_embed.set_thumbnail(url='http://i.imgur.com/19G4hV1.png')
 
 commands_message = '```css\n' \
                    'eb!info - shows this menu.\n' \

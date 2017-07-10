@@ -60,11 +60,14 @@ class EventBot(discord.Client):
         await self.check_schedule()
 
     async def on_server_join(self, server):
-        self.logger.info('Joined servers {} ("{}")'.format(server.id, server.name))
+        self.logger.info('Joined server {} ("{}")'.format(server.id, server.name))
 
     async def on_message(self, message):
         if message.author == self.user:
             return
+
+        if message.author.bot:
+            return # Don't respond to bots to prevent potential spam.
 
         if message.content.startswith('eb!'):
             args = message.content[3:].split(' ')
@@ -73,6 +76,21 @@ class EventBot(discord.Client):
             if cmd is not None:
                 await cmd(self, args, message)
 
+    async def on_member_remove(self, member):
+        if member is member.server.me: return # Don't notify ourselves.
+
+        events = self.event_table.find(serverid = member.server.id)
+        for event in events:
+            self.subscription_table.delete(eventid = event['id'], userid = member.id)
+        await self.send_message(member, 'Hey! I noticed you left {} so your subscriptions there have automatically been removed'
+                .format(member.server.name))
+
+    async def on_server_remove(self, server):
+        events = self.event_table.find(serverid = server.id)
+        for event in events:
+            self.subscription_table.delete(eventid = event['id'])
+        self.event_table.delete(serverid = server.id)
+        self.db['server_settings'].delete(serverid = server.id)
 
     async def check_schedule(self):
         while True:
