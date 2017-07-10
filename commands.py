@@ -147,7 +147,7 @@ async def event(bot, args, message):
                           color = 0x5cc0f2, # Color is a nice sky blue.
                           type = 'rich')
     embed.add_field(name = 'ID', value = str(id))
-    embed.add_field(name = 'When', value = dtobj.strftime('%m/%d/%y %I:%M%p'))
+    embed.add_field(name = 'When', value = (dtobj + zones[zone]).strftime('%m/%d/%y %I:%M%p {}'.format(zone)))
     await bot.send_message(message.channel, embed = embed)
 
 async def cancel(bot, args, message):
