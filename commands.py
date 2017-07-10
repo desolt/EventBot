@@ -1,5 +1,5 @@
 import discord
-from eventbot import ErrorMessages
+from eventbot import ErrorMessages, zones
 from datetime import datetime
 
 # command messages
@@ -45,7 +45,12 @@ async def print_events(target, events, page, bot):
         desc += '**ID:** {}\n'.format(event['id'])
         desc += '**Name**: {}\n'.format(event['name'])
         desc += '**Server**: {}\n'.format(bot.get_server(event['serverid']).name)
-        desc += '**When:** {}\n\n'.format(event['startsat'].strftime('%m/%d/%y %I:%M%p UTC'))
+        time = event['startsat']
+        zone = 'UTC'
+        if not isinstance(target, discord.User):
+            zone = await bot.get_timezone(target.server)
+            time += zones[zone]
+        desc += '**When:** {}\n\n'.format(time.strftime('%m/%d/%y %I:%M%p {}'.format(zone)))
     embed = discord.Embed(title = 'Page #{}:'.format(page), color = 0xdafc1b, description = desc)
            
     await bot.send_message(target, embed = embed)
@@ -72,7 +77,7 @@ async def info(bot, args, message):
 
 async def eventchannel(bot, args, message):
     if len(args) == 1:
-        channel = await bot.get_event_channel(message.server, bot)
+        channel = await bot.get_event_channel(message.server)
         await bot.send_message(message.channel, 'The event channel is <#{}>.'.format(channel.id))
     elif len(args) == 2:
         try:
@@ -219,6 +224,39 @@ async def repeat(bot, args, message):
     bot.event_table.update(dict(id = event['id'], repeat = repeat), ['id'])
     await bot.send_message(message.channel, 'Repeat for event #{} is now set to {}'.format(event['id'], repeat))
 
+async def timezone(bot, args, message):
+    if len(args) > 2:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    if len(args) == 1:
+        zone = await bot.get_timezone(message.server)
+        await bot.send_message(message.channel, 'Your set timezone is {}.'.format(zone))
+        return
+
+    if not message.channel.permissions_for(message.author).administrator:
+        await bot.send_message(message.channel, ErrorMessages.PERMISSION)
+        return
+
+    zone = args[1]
+    try:
+        await bot.set_timezone(message.server, zone.upper())
+        await bot.send_message(message.channel, 'Your timezone is now set to {}.'.format(zone))
+    except ValueError:
+        await bot.send_message(message.channel, 'That timezone is not supported!')
+
+async def timezones(bot, args, message):
+    if len(args) != 1:
+        await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
+        return
+
+    from eventbot import zones
+    desc = ''
+    for zone in zones:
+        desc += '{}\n'.format(zone)
+    embed = discord.Embed(title = 'Supported timezones:', type = 'rich', description = desc)
+    await bot.send_message(message.channel, embed = embed)
+
 commands = {
     'info': info,
     'help': info,
@@ -230,4 +268,6 @@ commands = {
     'events': events,
     'subscriptions': subscriptions,
     'repeat': repeat,
+    'timezone': timezone,
+    'timezones': timezones,
 }

@@ -5,6 +5,12 @@ import logging, sys, os
 from datetime import datetime, timedelta
 from enum import Enum
 
+zones = {
+    'UTC': timedelta(hours =  0),
+    'EST': timedelta(hours = -4),
+    'ECT': timedelta(hours = 1),
+}
+
 class ErrorMessages(Enum):
     def __str__(self):
         return str(self.value)
@@ -62,7 +68,7 @@ class EventBot(discord.Client):
                 if datetime.utcnow() < event['startsat']:
                     continue
 
-                channel = await self.get_event_channel(self.get_server(event['serverid']), bot)
+                channel = await self.get_event_channel(self.get_server(event['serverid']))
 
                 await self.send_message(channel, 'Event "{}" (#{}) has started!'.format(event['name'], event['id']))
                 for userid in self.subscription_table.find(eventid = event['id']):
@@ -76,7 +82,7 @@ class EventBot(discord.Client):
                 if 'repeat' in event and event['repeat']: 
                     # Delays the event to next week.
                     startsat = event['startsat']
-                    dtobj = startsat  + timedelta(days = 7),
+                    dtobj = startsat + timedelta(days = 7),
                     self.event_table.update(dict(startsat = dtobj[0], id = event['id']), ['id'])
                 else:
                     self.subscription_table.delete(eventid = event['id'])
@@ -85,12 +91,13 @@ class EventBot(discord.Client):
 
             await asyncio.sleep(60) # Wait every minute to check for an event.
 
-    async def get_event_channel(self, server, bot):
+    async def get_event_channel(self, server):
         channel = self.db['server_settings'].find_one(serverid = server.id)
         if channel is None:
             channel = server.default_channel
         else:
             channel = self.get_channel(channel['eventchannel'])
+            if channel is None: return server.default_channel
         return channel
 
     async def set_event_channel(self, server, channel):
@@ -99,6 +106,26 @@ class EventBot(discord.Client):
             self.db['server_settings'].insert(settings)
         else:
             self.db['server_settings'].update(settings, ['serverid'])
+
+    async def get_timezone(self, server):
+        settings = self.db['server_settings'].find_one(serverid = server.id)
+        if settings is None:
+            return 'UTC'
+
+        try:
+            return settings['zone']
+        except KeyError:
+            return 'UTC'
+
+    async def set_timezone(self, server, zone):
+        if zones.get(zone) is None:
+            raise ValueError('Unsupported timezone!')
+
+        settings = self.db['server_settings'].find_one(serverid = server.id)
+        if settings is None:
+            self.db['server_settings'].insert(dict(serverid = server.id, zone = zone))
+        else:
+            self.db['server_settings'].update(dict(serverid = server.id, zone = zone), ['serverid'])
 
 if __name__ == '__main__':
     # Obtain config from config.json
