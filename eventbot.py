@@ -8,7 +8,19 @@ from enum import Enum
 zones = {
     'UTC': timedelta(hours =  0),
     'EST': timedelta(hours = -4),
-    'ECT': timedelta(hours = 1),
+    'EDT': timedelta(hours = -4),
+    'CDT': timedelta(hours = -5),
+    'CST': timedelta(hours = -6),
+    'MST': timedelta(hours = -7),
+    'PST': timedelta(hours = -8),
+    # Best timezones end around here :(
+    'ECT': timedelta(hours =  1),
+    'EET': timedelta(hours =  2),
+    'MSK': timedelta(hours =  3),
+    'JST': timedelta(hours =  9),
+    'KST': timedelta(hours =  9),
+    'CST': timedelta(hours =  8),
+    'IST': timedelta(hours =  5, minutes = 30),
 }
 
 class ErrorMessages(Enum):
