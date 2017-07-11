@@ -82,8 +82,8 @@ class EventBot(discord.Client):
         events = self.event_table.find(serverid = member.server.id)
         for event in events:
             self.subscription_table.delete(eventid = event['id'], userid = member.id)
-        await self.send_message(member, 'Hey! I noticed you left {} so your subscriptions there have automatically been removed'
-                .format(member.server.name))
+        #await self.send_message(member, 'Hey! I noticed you left {} so your subscriptions there have automatically been removed'
+        #        .format(member.server.name))
 
     async def on_server_remove(self, server):
         events = self.event_table.find(serverid = server.id)

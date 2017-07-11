@@ -147,7 +147,11 @@ async def event(bot, args, message):
         await bot.send_message(message.channel, 'Invalid datetime format!')
         return
             
-    id = bot.event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
+    try:
+        id = bot.event_table.insert(dict(name = args[1], serverid = message.server.id, startsat = dtobj, repeat = False))
+    except UnicodeError:
+        await bot.send_message(message.channel, 'I can\'t use those characters! :(')
+        return
     embed = discord.Embed(title = 'Created a new event!', 
                           description = args[1], 
                           color = 0x5cc0f2, # Color is a nice sky blue.
