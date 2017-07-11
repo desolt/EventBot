@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import asyncio, discord
+import asyncio, discord, threading
 import dataset, json
 import logging, sys, os
 from datetime import datetime, timedelta
@@ -57,6 +57,8 @@ class EventBot(discord.Client):
         self.logger.info('Servers joined: {}'.format(len(self.servers)))
         self.logger.info('Events pending: {}'.format(self.event_table.count()))
         self.logger.info('EventBot is now online!')
+        self.input_thread = threading.Thread(target=self.retrieve_input)
+        self.input_thread.start()
         await self.check_schedule()
 
     async def on_server_join(self, server):
@@ -158,6 +160,22 @@ class EventBot(discord.Client):
             self.db['server_settings'].insert(dict(serverid = server.id, zone = zone))
         else:
             self.db['server_settings'].update(dict(serverid = server.id, zone = zone), ['serverid'])
+
+    def retrieve_input(self):
+        while True:
+            try:
+                command = input('>').rstrip('\n').lower()
+                args = command.split(' ')
+            except EOFError: break
+
+            if args[0] == 'servers':
+                for server in self.servers:
+                    print('{} - "{}"'.format(server.id, server.name))
+            elif args[0] == 'stop':
+                self.logout()
+                break
+            else:
+                print('Invalid command!')
 
 if __name__ == '__main__':
     # Obtain config from config.json
