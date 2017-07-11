@@ -14,14 +14,16 @@ info_embed.set_thumbnail(url='http://i.imgur.com/19G4hV1.png')
 
 commands_message = '```css\n' \
                    'eb!info - shows this menu.\n' \
-                   'eb!eventchannel <channel>\n' \
-                   'eb!event <name> <mm/dd/yy> <hh:mm UTC> - schedules an event\n' \
+                   'eb!eventchannel <channel>.\n' \
+                   'eb!event <name> <mm/dd/yy> <hh:mm UTC> - schedules an event.\n' \
                    'eb!repeat <id> - toggles whether an event should repeat each week.\n' \
                    'eb!events [page #] - shows the current scheduled events\n' \
-                   'eb!cancel <id> - cancels an event\n' \
-                   'eb!subscribe <id> - subscribes to an event\n' \
-                   'eb!unsubscribe <id> - unsubscribes from an event\n' \
-                   'eb!subscriptions [page #] - lists subscribed events (DM only)\n' \
+                   'eb!cancel <id> - cancels an event.\n' \
+                   'eb!subscribe <id> - subscribes to an event.\n' \
+                   'eb!unsubscribe <id> - unsubscribes from an event.\n' \
+                   'eb!subscriptions [page #] - lists subscribed events (DM only).\n' \
+                   'eb!timezones - lists supported timezones.\n' \
+                   'eb!timezone [zone] - without the argument shows the current timezone, otherwise selects your timezone.\n' \
                    '```'
 
 # Helper functions
@@ -76,6 +78,10 @@ async def info(bot, args, message):
         await bot.send_message(message.channel, ErrorMessages.INVALID_ARG)
 
 async def eventchannel(bot, args, message):
+    if not message.channel.permissions_for(message.author).administrator:
+        await bot.send_message(message.channel, ErrorMessages.PERMISSION)
+        return
+
     if len(args) == 1:
         channel = await bot.get_event_channel(message.server)
         await bot.send_message(message.channel, 'The event channel is <#{}>.'.format(channel.id))
